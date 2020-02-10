@@ -1,0 +1,521 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Virtual Pet</title>
+<link rel="stylesheet" href="virtualpet.css" type="text/css">
+<link rel="stylesheet" href="w3.css" type="text/css">
+<script type="text/javascript">
+//NOTE:
+//1) l'attributo "onsubmit" delle form utilizzate è stato impsotato su "return false"
+//per evitare il refresh della pagina.
+//I dati vengono letti dalle form tramite HTML DOM
+//2)Per evitare la visualizzazione dei parametri
+//delle richieste post nell'url della pagina, le richieste hanno il seguente header:
+//xmlhttp.setRequestHeader("Content-type","application/x-www-form-urlencoded");
+
+
+//variabili globali
+	var varIdUtente = 0;
+	var varUsername = "null";
+	var varPunti = 0;
+	var varIdPet = 0;
+	var varNumPet=0;
+	var varPetList;
+	var tipoNuovo;
+	var varStrumenti;
+	var varAcquisti;
+	var varConferma;
+	var varNumMessaggio=0;
+	var funGiardino;
+	var funGestione;
+	var varGestione=0;
+	var varMinigioco=0;
+	var varLogGiardino=0;
+	var varPetMinigioco;
+	var iPet1 =new Image();
+	iPet1.src="res/pet1.png";
+	var iPet2 =new Image();
+	iPet2.src="res/pet2.png";
+	var iPet3 =new Image();
+	iPet3.src="res/pet3.png";
+	var ip1 =new Image();
+	ip1.src="res/salute.png";
+	var ip2 =new Image();
+	ip2.src="res/carne.png";
+	var ip3 =new Image();
+	ip3.src="res/smile.png";
+	var ip4=new Image();
+	ip4.src="res/pulizia.png";
+	
+	//funzione chiamata all'uscita della pagina per effetturare il logout dal giardino
+	function chiusura(){
+		if(varLogGiardino==1)
+			logoutgiardino();
+	}
+	//anteprima del pet sul canvas durante la selezione del pet da gestire/creare
+	function anteprima(tipo) {
+		var img = new Image();
+		img.src = "res/pet" + tipo + ".png";
+		tipoNuovo = tipo;
+		var c = document.getElementById("canvasanteprima");
+		var ctx = c.getContext("2d");
+		ctx.clearRect(0, 0, 400, 300);
+		ctx.drawImage(img, 140, 110);
+	}
+	//refresh del giardino per aggiornare la posizione dei giocatori e prendere l'ultimo messaggio
+	function aggiornagiardino(){
+		xmlhttp = new XMLHttpRequest();
+		xmlhttp.open("GET", "GiardinoServlet", false);
+		xmlhttp.send();
+		text = xmlhttp.responseText;
+		parser = new DOMParser();
+		xmlDoc = parser.parseFromString(text, "text/xml");
+		var nomi = xmlDoc.getElementsByTagName("nome");
+		var px = xmlDoc.getElementsByTagName("x");
+		var py = xmlDoc.getElementsByTagName("y");
+		var tp = xmlDoc.getElementsByTagName("tipo");
+		var testo = xmlDoc.getElementsByTagName("testo");
+		var numero = xmlDoc.getElementsByTagName("numero");
+
+		var g = document.getElementById("Canvas");
+		var ctxg = g.getContext("2d");
+		ctxg.clearRect(0, 0, 800, 600);
+		for (var i = 0; i < nomi.length; i++) {
+			ctxg.font = "20px Arial";
+			ctxg.fillStyle = "#FF0000";
+			ctxg.fillText(nomi[i].childNodes[0].nodeValue,px[i].childNodes[0].nodeValue,py[i].childNodes[0].nodeValue);
+			switch (tp[i].childNodes[0].nodeValue){
+				case "1":
+					ctxg.drawImage(iPet1, px[i].childNodes[0].nodeValue,py[i].childNodes[0].nodeValue);
+					break;
+				case "2":
+					ctxg.drawImage(iPet2, px[i].childNodes[0].nodeValue,py[i].childNodes[0].nodeValue);
+					break;
+				case "3":
+					ctxg.drawImage(iPet3, px[i].childNodes[0].nodeValue,py[i].childNodes[0].nodeValue);	
+					break;
+				default:
+					break;
+		
+			}
+		}
+		if(numero[0].childNodes[0].nodeValue>varNumMessaggio){
+			varNumMessaggio=parseInt(numero[0].childNodes[0].nodeValue);
+			document.getElementById("chat").value += "\n"+testo[0].childNodes[0].nodeValue;
+			document.getElementById("chat").scrollTop = document.getElementById("chat").scrollHeight;
+			}
+	}
+	
+	//logout dal giardino
+	function logoutgiardino(){
+		clearInterval(funGiardino);	
+		xmlhttp = new XMLHttpRequest();
+		xmlhttp.open("POST", "GiardinoServlet", false);
+		xmlhttp.setRequestHeader("Content-type","application/x-www-form-urlencoded");
+		xmlhttp.send("Tipo=logout&Nome=" +varUsername+"-"+varPetList.listapet[varNumPet].nome);
+		document.getElementById("vistagiardino").innerHTML="";
+		gestiscipet();
+		varLogGiardino=0;
+	}
+	//funzione per mandare i messaggi nella chat, in quanto vengono gestiti dal server
+	// ogni messaggio viene numerato dal server progressivamente e rispedito ad ogni aggiornamento
+	// se il client non ha l'ultimo messaggio, questo viene letto.
+	function mg(event){
+		var x = event.which || event.keyCode;
+		if (x=='13'){			
+			xmlhttp = new XMLHttpRequest();
+			xmlhttp.open("POST", "GiardinoServlet", false);
+			xmlhttp.setRequestHeader("Content-type","application/x-www-form-urlencoded");
+			xmlhttp.send("Tipo=messaggio&Messaggio="+varUsername+"-"+varPetList.listapet[varNumPet].nome+":"+document.getElementById("messaggio").value);
+			document.getElementById("messaggio").value="";
+
+		}	
+	}
+	
+	//dico alla servlet del giardino che ho spostato il personaggio
+	function evento(event){
+		var x = event.which || event.keyCode;
+		if (x=='37'|x=='38'|x=='39'|x=='40'|x=='32'){
+			xmlhttp = new XMLHttpRequest();
+			xmlhttp.open("POST", "GiardinoServlet", false);
+			xmlhttp.setRequestHeader("Content-type","application/x-www-form-urlencoded");
+			var x = event.which || event.keyCode;
+			xmlhttp.send("Tipo=evento&Nome=" +varUsername+"-"+varPetList.listapet[varNumPet].nome + "&Tasto=" + x);
+		}
+	}
+	
+	function logingiardino(){
+		varGestione=0;
+		clearInterval(funGestione);
+		xmlhttp = new XMLHttpRequest();
+		xmlhttp.open("POST", "GiardinoServlet", false);
+		xmlhttp.setRequestHeader("Content-type","application/x-www-form-urlencoded");
+		xmlhttp.send("Tipo=login&Nome=" +varUsername+"-"+varPetList.listapet[varNumPet].nome+"&TipoPet="+varPetList.listapet[varNumPet].tipo);
+		document.getElementById("vistagestione").innerHTML=("<table><tr><td rowspan=2 id=cellacanvasgestione></td><td id=cellastrumenti></td></tr><tr><td id=cellafunzionigestione></td></tr></table></div>");	
+		document.getElementById("vistagiardino").innerHTML="<table onkeydown=\"evento(event)\"><tr><td rowspan=\"2\"><canvas id=\"Canvas\" width=\"800\" height=\"600\" style=\"border:1px solid #000000\"></canvas></td><td><form onsubmit=\"return false;\"><textarea id=\"chat\" readOnly style=\"width: 400px; height: 500px \"></textarea></br>Inserire qui il testo e premere invio</br><input id=\"messaggio\" onkeydown=\"mg(event)\" type=\"text\" style=\"width: 400px\"/></form><button onclick=\"logoutgiardino()\" class=\"w3-btn w3-blue\">Rientra</button></td></tr></table>";
+		funGiardino=setInterval("aggiornagiardino()",100);
+		varLogGiardino=1;
+	}
+	//creazione nuovo pet
+	function nuovo() {
+		var nome = document.getElementById("petname").value;
+		if (nome != "") {
+			xmlhttp.open("POST", "VirtualPetServlet", false);
+			xmlhttp.setRequestHeader("Content-type","application/x-www-form-urlencoded");
+			xmlhttp.send("Tipo=nuovopet&UserId=" + varIdUtente + "&Nome="+ nome + "&TipoPet=" + tipoNuovo);
+			document.getElementById("vistanuovo").innerHTML = "";
+			selezione(varIdUtente);
+		} else
+			alert("Specificare un nome per il pet.");
+	}
+	
+	//annullo la creazione di un nuovo pet
+	function annullanuovo() {
+		document.getElementById("vistanuovo").innerHTML = "";
+		selezione(varIdUtente);
+	}
+
+	//carico il div per la "finestra" di creazione di un nuovo personaggio
+	function nuovopet() {
+		document.getElementById("vistaselezione").innerHTML = "<table><tr><td id=listaselezione></td></tr><tr id=comandiselezione><td></td></tr></table>";
+		document.getElementById("vistanuovo").innerHTML = ("<canvas id='canvasanteprima' width=\"400\" height=\"300\"></canvas></br><form onsubmit='return false;'>Nome:<input type='text' id='petname' name='nomepet'></br>");
+		for (i = 1; i < 4; i++)
+			document.getElementById("vistanuovo").innerHTML = document.getElementById("vistanuovo").innerHTML+ "<input type='radio' checked='true' name='tipopet' onclick='anteprima("+ i + ")'>Tipo " + i + "</br>";
+		document.getElementById("vistanuovo").innerHTML = document.getElementById("vistanuovo").innerHTML+ "<button class='w3-btn w3-green' onclick='nuovo()'>Crea</button><button class='w3-btn w3-red' onclick='annullanuovo()'>Annulla</button>";
+	}
+	
+	//funzione per l'eliminazione dei pet
+	function eliminapet(id) {
+		var e = confirm("Eliminare il pet?");
+		if (e == true) {
+			xmlhttp.open("POST", "VirtualPetServlet", false);
+			xmlhttp.setRequestHeader("Content-type","application/x-www-form-urlencoded");
+			xmlhttp.send("Tipo=eliminapet&IdPet=" + id);
+			selezione(varIdUtente);
+		}
+	}
+		
+	//caricamento della "vista" per il minigioco
+	function entraminigioco(){
+		clearInterval(funGestione);
+		document.getElementById("vistagestione").innerHTML=("<table><tr><td rowspan=2 id=cellacanvasgestione></td><td id=cellastrumenti></td></tr><tr><td id=cellafunzionigestione></td></tr></table></div>");	
+		document.getElementById("vistaminigioco").innerHTML="Trova il pet!</br><canvas id='canvasminigioco' width=\"400\" height=\"300\" onclick=\"clickminigioco(event)\"></canvas></br><button class=\"w3-btn w3-blue\" onclick=\"esciminigioco()\">Rientra</button>";
+		iniziaminigioco();
+	}
+	
+	//inizializzazione del minigioco
+	function iniziaminigioco(){
+		varPetMinigioco=Math.floor((Math.random() * 2) + 1); 
+		var c = document.getElementById("canvasminigioco");
+		var ctx = c.getContext("2d");
+		ctx.clearRect(0, 0, 400, 300);
+		ctx.fillStyle = "#FFFFFF";
+		ctx.fillRect(70,85, 90, 120);
+		ctx.fillRect(235,85,90,120);
+	}
+	
+	//funzione che controlla se ho scelto l'opzione esatta del minigioco
+	function clickminigioco(evento){
+		var posizionecanvas = document.getElementById("canvasminigioco").getBoundingClientRect();
+		var img = new Image();
+		img.src = "res/pet" + varPetList.listapet[varNumPet].tipo + ".png";
+	    x= evento.clientX -	posizionecanvas.left;
+	    y= evento.clientY - posizionecanvas.top;
+	    if((x>=70 && x<160)&&(y>=85 && y<=205)){
+	    	r=1;
+	    	if(r==varPetMinigioco){
+	    		var c = document.getElementById("canvasminigioco");
+	    		var ctx = c.getContext("2d");
+	    		varPunti+=10;
+	    		xmlhttp.open("POST", "VirtualPetServlet", false);
+				xmlhttp.setRequestHeader("Content-type","application/x-www-form-urlencoded");
+				xmlhttp.send("Tipo=aggiornapunti&IdUtente=" + varIdUtente+"&Punti="+varPunti);
+				document.getElementById("menù").innerHTML="Benvenuto "+varUsername +".  Punti: "+varPunti+". Stai giocando con "+varPetList.listapet[varNumPet].nome+".<button class='w3-btn w3-red w3-medium' onclick='esci()'>Esci</button>";
+				
+				ctx.fillStyle = "#00FF40";
+	    		ctx.drawImage(img,70,85);
+	    		alert("Hai trovato il pet! Vinci 10 punti");
+	    		iniziaminigioco();
+	    		return;
+	    	}else{
+	    		
+	    		var c = document.getElementById("canvasminigioco");
+	    		var ctx = c.getContext("2d");
+	    		ctx.fillStyle = "#FF0000";
+	    		ctx.fillRect(70,85, 90, 120);
+	    		ctx.drawImage(img,235,85);
+	    		alert("Ritenta");
+	    		iniziaminigioco();
+	    		return;
+	    	}
+	    		
+	    	
+	    }
+	    if((x>=235 && x<=335)&&(y>=85 && y<=205)){
+	    	r=2;
+	    	if(r==varPetMinigioco){
+	    		
+	    		var c = document.getElementById("canvasminigioco");
+	    		var ctx = c.getContext("2d");
+	    		varPunti+=10;
+	    		xmlhttp.open("POST", "VirtualPetServlet", false);
+				xmlhttp.setRequestHeader("Content-type","application/x-www-form-urlencoded");
+				xmlhttp.send("Tipo=aggiornapunti&IdUtente=" + varIdUtente+"&Punti="+varPunti);
+				document.getElementById("menù").innerHTML="Benvenuto "+varUsername +".  Punti: "+varPunti+". Stai giocando con "+varPetList.listapet[varNumPet].nome+".<button class='w3-btn w3-red w3-medium' onclick='esci()'>Esci</button>";
+	    		ctx.drawImage(img,235,85);
+	    		alert("Hai trovato il pet!Vinci 10 punti");
+	    		iniziaminigioco();
+	    		return;
+	    	}else{
+	    		var c = document.getElementById("canvasminigioco");
+	    		var ctx = c.getContext("2d");
+	    		ctx.fillStyle = "#FF0000";
+	    		ctx.fillRect(235,85, 90, 120);
+	    		ctx.drawImage(img,70,85);
+	    		alert("Ritenta");
+	    		iniziaminigioco();
+	    		return;
+	    	}
+	    		
+	    }
+	    
+	}
+	//esco dal minigioco
+	function esciminigioco(){
+		document.getElementById("vistaminigioco").innerHTML="";
+		gestiscipet();
+	}
+	
+	
+	//torno al login
+	function esci() {
+		
+		clearInterval(funGestione);
+		varGestione=0;
+	
+		if (varLogGiardino==1)
+			logoutgiardino();
+		document.getElementById("vistalogin").innerHTML="<table><td>User:<input type='text' id='user' name='utente'></td><tr><td>Password:<input type='password' id='password' name='pass'></td></table>";
+		document.getElementById("vistalogin").innerHTML=document.getElementById("vistalogin").innerHTML+"<input type='button' value='Entra' class='w3-btn w3-green'	onclick=\"login(document.getElementById('user').value,document.getElementById('password').value)\">";
+		document.getElementById("vistanuovo").innerHTML="";
+		document.getElementById("vistaselezione").innerHTML = "<table><tr><td id=listaselezione></td></tr><tr id=comandiselezione><td></td></tr></table>";
+		document.getElementById("vistagiardino").innerHTML="";
+		document.getElementById("vistaselezione").innerHTML = "<table><tr><td id=listaselezione></td></tr><tr id=comandiselezione><td></td></tr></table>";		
+		document.getElementById("menù").innerHTML="Virtual Pet";
+		document.getElementById("vistagestione").innerHTML=("<table><tr><td rowspan=2 id=cellacanvasgestione></td><td id=cellastrumenti></td></tr><tr><td id=cellafunzionigestione></td></tr></table></div>");	
+		document.getElementById("vistaminigioco").innerHTML="";
+	}
+
+	//utilizzo uno strumento, aggiorno i parametri del pet
+	function usastrumento(Strumento){
+		
+		varPetList.listapet[varNumPet].p1+=varStrumenti.listastrumenti[Strumento].p1;
+		varPetList.listapet[varNumPet].p2+=varStrumenti.listastrumenti[Strumento].p2;
+		varPetList.listapet[varNumPet].p3+=varStrumenti.listastrumenti[Strumento].p3;
+		varPetList.listapet[varNumPet].p4+=varStrumenti.listastrumenti[Strumento].p4;
+		if(varPetList.listapet[varNumPet].p1>100)
+			varPetList.listapet[varNumPet].p1=100;
+		if(varPetList.listapet[varNumPet].p2>100)
+			varPetList.listapet[varNumPet].p2=100;
+		if(varPetList.listapet[varNumPet].p3>100)
+			varPetList.listapet[varNumPet].p3=100;
+		if(varPetList.listapet[varNumPet].p4>100)
+			varPetList.listapet[varNumPet].p4=100;
+		
+		xmlhttp.open("POST", "VirtualPetServlet", false);
+		xmlhttp.setRequestHeader("Content-type","application/x-www-form-urlencoded");
+		xmlhttp.send("Tipo=aggiornapet&IdPet=" + varIdPet+"&P1="+varPetList.listapet[varNumPet].p1+"&P2="+varPetList.listapet[varNumPet].p2+"&P3="+varPetList.listapet[varNumPet].p3+"&P4="+varPetList.listapet[varNumPet].p4);
+		aggiornapet();
+	}
+	
+	//funzione continua per far decrescere i parametri del pet col passare del tempo
+	function tempogestione(){
+		varPetList.listapet[varNumPet].p1-=5;
+		varPetList.listapet[varNumPet].p2-=5;
+		varPetList.listapet[varNumPet].p3-=5;
+		varPetList.listapet[varNumPet].p4-=5;
+		if(varPetList.listapet[varNumPet].p1<0)
+			varPetList.listapet[varNumPet].p1=0;
+		if(varPetList.listapet[varNumPet].p2<0)
+			varPetList.listapet[varNumPet].p2=0;
+		if(varPetList.listapet[varNumPet].p3<0)
+			varPetList.listapet[varNumPet].p3=0;
+		if(varPetList.listapet[varNumPet].p4<0)
+			varPetList.listapet[varNumPet].p4=0;
+		
+		xmlhttp.open("POST", "VirtualPetServlet", false);
+		xmlhttp.setRequestHeader("Content-type","application/x-www-form-urlencoded");
+		xmlhttp.send("Tipo=aggiornapet&IdPet=" + varIdPet+"&P1="+varPetList.listapet[varNumPet].p1+"&P2="+varPetList.listapet[varNumPet].p2+"&P3="+varPetList.listapet[varNumPet].p3+"&P4="+varPetList.listapet[varNumPet].p4);
+		aggiornapet();
+	}
+	
+	//acquisto uno strumento
+	function acquistastrumento(Strumento){
+	var e = confirm("Acquistare strumento?" );
+		if(e==1){
+			if( varPunti >= varStrumenti.listastrumenti[Strumento].prezzo){
+				varPunti -= varStrumenti.listastrumenti[Strumento].prezzo;
+				xmlhttp.open("POST", "VirtualPetServlet", false);
+				xmlhttp.setRequestHeader("Content-type","application/x-www-form-urlencoded");
+				xmlhttp.send("Tipo=aggiornapunti&IdUtente=" + varIdUtente+"&Punti="+varPunti);
+				xmlhttp.open("POST", "VirtualPetServlet", false);
+				xmlhttp.setRequestHeader("Content-type","application/x-www-form-urlencoded");
+				xmlhttp.send("Tipo=acquistastrumento&IdUtente=" + varIdUtente+"&IdStrumento="+varStrumenti.listastrumenti[Strumento].id);
+				gestiscipet();
+			}else{
+				alert("Punti insufficienti.");
+			}	
+		}
+	}
+	//caricamento della "vista" per gestire il pet/strumenti/minigiochi
+	function gestiscipet() {
+		document.getElementById("vistaselezione").innerHTML = "<table><tr><td id=listaselezione></td></tr><tr id=comandiselezione><td></td></tr></table>";
+		document.getElementById("cellacanvasgestione").innerHTML= "<canvas id=canvasgestione width=\"600\" height=\"500\">";
+		document.getElementById("menù").innerHTML="Benvenuto "+varUsername +".  Punti: "+varPunti+". Stai giocando con "+varPetList.listapet[varNumPet].nome+".<button class='w3-btn w3-red w3-medium' onclick='esci()'>Esci</button>";
+		
+		
+		xmlhttp.open("POST", "VirtualPetServlet", false);
+		xmlhttp.setRequestHeader("Content-type","application/x-www-form-urlencoded");
+		xmlhttp.send("Tipo=listastrumenti");
+		text = xmlhttp.responseText;
+		varStrumenti = JSON.parse(text);
+		
+		xmlhttp.open("POST", "VirtualPetServlet", false);
+		xmlhttp.setRequestHeader("Content-type","application/x-www-form-urlencoded");
+		xmlhttp.send("Tipo=listaacquisti&IdUtente=" + varIdUtente);
+		text = xmlhttp.responseText;
+		varAcquisti = JSON.parse(text);
+		document.getElementById("cellastrumenti").innerHTML="";
+		for (i = 0; i < varStrumenti.listastrumenti.length; i++){
+		 acquistato=0;
+		for(j=0;j<varAcquisti.listaacquisti.length;j++){
+		if(varAcquisti.listaacquisti[j].idstrumento==varStrumenti.listastrumenti[i].id)
+		acquistato=1;}
+		if (acquistato==1){
+			document.getElementById("cellastrumenti").innerHTML=document.getElementById("cellastrumenti").innerHTML+"<div class=\"w3-dropdown-hover\"><button class=\"strumento\" onclick='usastrumento("+(i)+")'><image src=\"res/"+(i+1)+".png\"></button><div class=\"w3-dropdown-content\">"+varStrumenti.listastrumenti[i].nome+"</br>Salute:"+varStrumenti.listastrumenti[i].p1+"</br>Sazietà:"+varStrumenti.listastrumenti[i].p2+"</br>Felicità:"+varStrumenti.listastrumenti[i].p3+"</br>Pulizia:"+varStrumenti.listastrumenti[i].p4+"</div></div>";
+		}else{
+			document.getElementById("cellastrumenti").innerHTML=document.getElementById("cellastrumenti").innerHTML+"<div class=\"w3-dropdown-hover\"><button class=\"strumento\" onclick='acquistastrumento("+(i)+")'><image src=\"res/"+(i+1)+".png\"></button><div class=\"w3-dropdown-content\">"+varStrumenti.listastrumenti[i].nome+"</br>Prezzo:"+varStrumenti.listastrumenti[i].prezzo+"</br>Salute:"+varStrumenti.listastrumenti[i].p1+"</br>Sazietà:"+varStrumenti.listastrumenti[i].p2+"</br>Felicità:"+varStrumenti.listastrumenti[i].p3+"</br>Pulizia:"+varStrumenti.listastrumenti[i].p4+"</div></div>";	}
+		}
+		document.getElementById("cellafunzionigestione").innerHTML="<button class='w3-btn w3-blue' onclick=\"entraminigioco()\">Minigioco</button><button class='w3-btn w3-green' onclick='logingiardino()'>Giardino</button><button class='w3-btn w3-red' onclick='selezione(varIdUtente)'>Cambia Pet</button>";	
+		funGestione=setInterval("tempogestione()",10000);
+		varGestione=1;
+		aggiornapet();
+	}
+	//aggiorno la rappresentazione del pet che sto gestendo sul canvas
+	function aggiornapet(){
+		var img = new Image();
+		img.src = "res/pet" + varPetList.listapet[varNumPet].tipo + ".png";
+		var c = document.getElementById("canvasgestione");
+		var ctx = c.getContext("2d");
+		ctx.clearRect(0, 0, 600, 500);
+		ctx.font = "25px Arial";
+		ctx.fillStyle = "#00FF40";
+		ctx.drawImage(img, 330, 350);
+		ctx.drawImage(ip1,10,10);
+		ctx.drawImage(ip2,110,10);
+		ctx.drawImage(ip3,210,10);
+		ctx.drawImage(ip4,310,10);
+		ctx.fillText(varPetList.listapet[varNumPet].p1,65,40);			
+		ctx.fillText(varPetList.listapet[varNumPet].p2,170,40);
+		ctx.fillText(varPetList.listapet[varNumPet].p3,270,40);	
+		ctx.fillText(varPetList.listapet[varNumPet].p4,370,40);
+	}
+	
+	//mostro un anteprima del pet selezionato
+	function petselezionato(Numero) {
+		varNumPet=Numero;
+		var img = new Image();
+		img.src = "res/pet" + varPetList.listapet[Numero].tipo + ".png";
+		varIdPet = varPetList.listapet[Numero].id;
+		var c = document.getElementById("canvasselezione");
+		var ctx = c.getContext("2d");
+		ctx.clearRect(0, 0, 400, 300);
+		ctx.font = "20px Arial";
+		ctx.fillStyle = "#FFFF00";
+		ctx.fillText("Pet: " + varPetList.listapet[Numero].nome, 20, 20);
+		ctx.drawImage(img, 155, 140);
+		document.getElementById("comandiselezione").innerHTML = ("<button class='w3-btn w3-green' onclick='gestiscipet()'>Gestisci</button><button class='w3-btn w3-red' onclick='eliminapet("+ varPetList.listapet[Numero].id + ")'>Elimina</button>");
+	}
+
+	//se seleziono uno slot vuoto
+	function slotvuoto() {
+		var c = document.getElementById("canvasselezione");
+		var ctx = c.getContext("2d");
+		ctx.clearRect(0, 0, 400, 300);
+		document.getElementById("comandiselezione").innerHTML = ("<button class='w3-btn w3-green' onclick='nuovopet()'>Nuovo</button>");
+	}
+
+	//carico la "vista" di selezione/creazione/eliminazione dei pet
+	function selezione(Id) {
+		
+		varGestione=0;
+		clearInterval(funGestione);
+		document.getElementById("menù").innerHTML="Benvenuto "+varUsername +".  Punti: "+varPunti+ ".    <button class='w3-btn w3-medium w3-red' onclick='esci()'>Esci</button>";
+		document.getElementById("listaselezione").innerHTML = "<canvas id=canvasselezione width=\"400\" height=\"300\"></canvas></br>"
+		document.getElementById("vistagestione").innerHTML=("<table><tr><td rowspan=2 id=cellacanvasgestione></td><td id=cellastrumenti></td></tr><tr><td id=cellafunzionigestione></td></tr></table></div>");	
+		xmlhttp.open("POST", "VirtualPetServlet", false);
+		xmlhttp.setRequestHeader("Content-type","application/x-www-form-urlencoded");
+		xmlhttp.send("Tipo=listapet&UserId=" + Id);
+		text = xmlhttp.responseText;
+		varPetList = JSON.parse(text);
+		for (i = 0; i < varPetList.listapet.length; i++) {
+			document.getElementById("listaselezione").innerHTML = document.getElementById("listaselezione").innerHTML+ ("<input type='radio' name='pet' onclick='petselezionato("+ i + ")'>" + varPetList.listapet[i].nome + "<br>");
+		}
+		for (i = 0; i < (5 - varPetList.listapet.length); i++) {
+			document.getElementById("listaselezione").innerHTML = document.getElementById("listaselezione").innerHTML+ ("<input type='radio' name='pet' onclick='slotvuoto()'>"+ "slot vuoto" + "<br>");
+		}
+	}
+	//effettuo il login
+	function login(Nome, Password) {
+		xmlhttp = new XMLHttpRequest();
+		xmlhttp.open("POST", "VirtualPetServlet", false);
+		xmlhttp.setRequestHeader("Content-type","application/x-www-form-urlencoded");
+		xmlhttp.send("Tipo=login&Username=" + Nome + "&Password=" + Password);
+		text = xmlhttp.responseText;
+		var utente = JSON.parse(text);
+		varIdUtente = utente.id;
+		if (varIdUtente != 0) {
+			varUsername = utente.nome;
+			varPunti = utente.punti;
+			document.getElementById("vistalogin").innerHTML = "";
+			document.getElementById("menù").innerHTML="Benvenuto "+varUsername +".  Punti: "+varPunti+ ".    <button class='w3-btn w3-medium w3-red' onclick='esci()'>Esci</button>";
+			selezione(varIdUtente);
+		} else {
+			alert("Username e/o password errati!");
+		}
+	}
+</script>
+</head>
+<body class="w3-container" onunload="chiusura()">
+	<div id="menù" class="w3-topnav w3-large w3-blue w3-border">Virtual Pet
+	
+	</div>
+	<br>
+	<div class="w3-center">
+	<form id="vistalogin" onsubmit="return false;">
+		<table>
+			<tr>
+				<td>User:<input type="text" id="user" name="utente"></td>
+			<tr>
+				<td>Password:<input type="password" id="password" name="password"></td>
+		</table>
+		<input type="button" value="Entra" class="w3-btn w3-green"	onclick="login(document.getElementById('user').value,document.getElementById('password').value)">
+	</form>
+	<div id="vistaselezione">
+		<table>
+			<tr>
+				<td id=listaselezione></td>
+			</tr>
+			<tr id="comandiselezione">
+				<td></td>
+			</tr>
+		</table>
+	</div>
+	<div id="vistanuovo"></div>
+	<div id="vistagestione"><table><tr><td rowspan=2 id=cellacanvasgestione></td><td id=cellastrumenti></td></tr><tr><td id=cellafunzionigestione></td></tr></table></div>
+	<div id="vistaminigioco"></div>
+	<div id="vistagiardino"><table id=tabellagiardino></table></div>
+	</div>
+</body>
+</html>
