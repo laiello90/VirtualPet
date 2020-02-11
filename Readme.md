@@ -18,7 +18,7 @@ Software utilizzati: Eclipse IDE, Tomcat, MySQL, MySQL Workbench
 
 Ciascun utente dovrà avere la possibilità di effettuare login e quindi poter creare, selezionare o eliminare virtual pet dal proprio account. I virtual pet vengono gestiti dall'utente in base ad alcuni parametri (es. Salute, Morale, Sonno, Fame) tramite alcune funzioni base e strumenti (ovvero funzioni aggiuntive) acquistabili dall'utente con dei punti (valuta) memorizzati nel proprio account. Il pet può partecipare individualmente a un minigioco. Inoltre è presente un area multiutente comune dove i giocatori che vi accedono potranno muovere il loro virtual pet, in uno spazio 2D, visualizzare i virtual pet degli altri utenti presenti nell'area comune e comunicare tra di loro tramite una semplice chat testuale.
 
-# Caratteristiche architetturali\
+# Caratteristiche architetturali
 \
 Per la realizzazione dell’applicazione web si è fatto uso:
 1.	Classi Java servlet per la gestione di richieste http ed elaborare le risposte da inviare ai client.
@@ -29,7 +29,7 @@ Per la realizzazione dell’applicazione web si è fatto uso:
 6.	Apache Tomcat, per il deployment e l'esecuzione del server.
 7.	JDBC e Database MySQL per memorizzare i dati degli utenti.
 
-# Requisiti funzionali\
+# Requisiti funzionali
 \
 L’applicazione web in generale:
 1.	Dovrà presentare un interfaccia per il login dell'utente.
@@ -38,7 +38,7 @@ L’applicazione web in generale:
 4.	Avere la possibilità di interagire graficamente con altri giocatori, tramite un area comune dove l'utente potrà muovere il proprio pet e visualizzare i pet in tempo reale di qualunque giocatore che si trovi nell'area comune, inoltre è prevista una semplice chat di gruppo nello stesso ambito.
 
 
-# Funzionalità lato client:\
+# Funzionalità lato client:
 Pagina HTML singola che permette all'utente di:
 1.	Effettuare Login.<br/>
 !["Login"](/screens/Login.jpg)
@@ -64,7 +64,7 @@ Pagina HTML singola che permette all'utente di:
 2.	Sono inoltre state implementate alcune classi tradizionali Java che vengono istanziate dalle servlet.
 3.	JDBC per la connessione al database su MySQL per memorizzare i dati e i progressi degli utenti.
 
-# Modello dei dati\
+# Modello dei dati
 \
 Per la web application è stata utilizzata una piccola base di dati su MySQL con il seguente schema.\
 UTENTI:(id, username, password, punti)\
